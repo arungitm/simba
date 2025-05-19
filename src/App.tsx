@@ -1,22 +1,17 @@
-import { Suspense } from "react";
-import { useRoutes, Routes, Route } from "react-router-dom";
-import Home from "./components/home";
-import routes from "tempo-routes";
+import React from 'react';
+import { Routes, Route } from 'react-router-dom';
+import Home from './components/home';
+import ProductsPage from './pages/products';
+import AdminPage from './pages/admin';
 
-function App() {
+const App = () => {
   return (
-    <Suspense fallback={<p>Loading...</p>}>
-      <>
-        {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)}
-        <Routes>
-          <Route path="/" element={<Home />} />
-          {import.meta.env.VITE_TEMPO === "true" && (
-            <Route path="/tempobook/*" />
-          )}
-        </Routes>
-      </>
-    </Suspense>
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/products" element={<ProductsPage />} />
+      <Route path="/admin" element={<AdminPage />} />
+    </Routes>
   );
-}
+};
 
 export default App;

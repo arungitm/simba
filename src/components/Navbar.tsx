@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 
 interface NavbarProps {
   className?: string;
@@ -9,36 +10,47 @@ interface NavbarProps {
 
 const Navbar = ({ className }: NavbarProps = {}) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const handleNavigation = (
     e: React.MouseEvent<HTMLAnchorElement>,
     path: string,
   ) => {
     e.preventDefault();
-    console.log(`Navigating to: ${path}`);
 
     if (path === "/") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } else if (path === "/products") {
-      const productsSection = document.getElementById("products-section");
-      if (productsSection) {
-        productsSection.scrollIntoView({ behavior: "smooth" });
+      if (location.pathname === "/") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        navigate("/");
       }
-    } else if (path === "/trading-process") {
+    } else if (path === "/products") {
+      if (location.pathname === "/") {
+        const productsSection = document.getElementById("products-section");
+        if (productsSection) {
+          productsSection.scrollIntoView({ behavior: "smooth" });
+        }
+      } else {
+        navigate("/products");
+      }
+    } else if (path === "/trading-process" && location.pathname === "/") {
       const processSection = document.getElementById("process-section");
       if (processSection) {
         processSection.scrollIntoView({ behavior: "smooth" });
       }
-    } else if (path === "/compliance") {
+    } else if (path === "/compliance" && location.pathname === "/") {
       const complianceSection = document.getElementById("compliance-section");
       if (complianceSection) {
         complianceSection.scrollIntoView({ behavior: "smooth" });
       }
-    } else if (path === "/contact") {
+    } else if (path === "/contact" && location.pathname === "/") {
       const contactSection = document.getElementById("rfq-section");
       if (contactSection) {
         contactSection.scrollIntoView({ behavior: "smooth" });
       }
+    } else {
+      navigate(path);
     }
 
     if (isMenuOpen) {
@@ -46,109 +58,112 @@ const Navbar = ({ className }: NavbarProps = {}) => {
     }
   };
 
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
-  };
-
   return (
     <nav
       className={cn(
-        "w-full bg-simba-navy text-white py-4 px-6 fixed top-0 left-0 z-50",
+        "w-full bg-simba-navy text-white py-0 px-6 fixed top-0 left-0 z-50",
         className,
       )}
     >
-      <div className="container mx-auto flex justify-between items-center">
+      <div className="container mx-auto flex justify-between items-stretch">
         {/* Logo */}
-        <div className="flex items-center">
-          <a
-            href="/"
-            onClick={(e) => handleNavigation(e, "/")}
+        <div className="flex items-stretch py-0">
+          <Link
+            to="/"
             className="text-2xl font-bold flex items-center"
+            onClick={(e) => handleNavigation(e as any, "/")}
           >
             <img
-              src="/simba-logo.jpg"
+              src="/logo.png"
               alt="Simba Ventura Logo"
-              className="h-12 mr-2"
+              className="h-32 w-auto max-w-[400px] object-contain hover:opacity-90 transition-opacity"
             />
-          </a>
+          </Link>
         </div>
 
         {/* Desktop Navigation */}
         <div className="hidden md:flex items-center space-x-8">
-          <a
-            href="/"
+          <Link
+            to="/"
             onClick={(e) => handleNavigation(e, "/")}
             className="hover:text-simba-gold transition-colors"
           >
             Home
-          </a>
-          <a
-            href="/about"
+          </Link>
+          <Link
+            to="/about"
             onClick={(e) => handleNavigation(e, "/about")}
             className="hover:text-simba-gold transition-colors"
           >
             About Us
-          </a>
+          </Link>
           <div className="relative group">
-            <a
-              href="/products"
+            <Link
+              to="/products"
               onClick={(e) => handleNavigation(e, "/products")}
               className="hover:text-simba-gold transition-colors"
             >
               Products & Services
-            </a>
+            </Link>
             <div className="absolute left-0 mt-2 w-48 bg-white text-[#546E7A] rounded-md shadow-lg py-2 z-10 hidden group-hover:block">
-              <a
-                href="/products/petroleum"
+              <Link
+                to="/products/petroleum"
                 onClick={(e) => handleNavigation(e, "/products/petroleum")}
                 className="block px-4 py-2 hover:bg-gray-100"
               >
                 Petroleum
-              </a>
-              <a
-                href="/products/coal"
+              </Link>
+              <Link
+                to="/products/coal"
                 onClick={(e) => handleNavigation(e, "/products/coal")}
                 className="block px-4 py-2 hover:bg-gray-100"
               >
                 Coal
-              </a>
-              <a
-                href="/products/minerals"
+              </Link>
+              <Link
+                to="/products/minerals"
                 onClick={(e) => handleNavigation(e, "/products/minerals")}
                 className="block px-4 py-2 hover:bg-gray-100"
               >
                 Minerals
-              </a>
-              <a
-                href="/products/foodstuffs"
+              </Link>
+              <Link
+                to="/products/foodstuffs"
                 onClick={(e) => handleNavigation(e, "/products/foodstuffs")}
                 className="block px-4 py-2 hover:bg-gray-100"
               >
                 Foodstuffs
-              </a>
+              </Link>
             </div>
           </div>
-          <a
-            href="/trading-process"
+          <Link
+            to="/trading-process"
             onClick={(e) => handleNavigation(e, "/trading-process")}
             className="hover:text-simba-gold transition-colors"
           >
             Trading Process
-          </a>
-          <a
-            href="/compliance"
+          </Link>
+          <Link
+            to="/compliance"
             onClick={(e) => handleNavigation(e, "/compliance")}
             className="hover:text-simba-gold transition-colors"
           >
             Compliance
-          </a>
-          <a
-            href="/contact"
+          </Link>
+          <Link
+            to="/contact"
             onClick={(e) => handleNavigation(e, "/contact")}
             className="hover:text-simba-gold transition-colors"
           >
             Contact
-          </a>
+          </Link>
+          <Link
+            to="/admin"
+            onClick={(e) => handleNavigation(e, "/admin")}
+            className="hover:text-simba-gold transition-colors"
+          >
+            Admin
+          </Link>
         </div>
 
         {/* CTA Button */}
@@ -169,7 +184,7 @@ const Navbar = ({ className }: NavbarProps = {}) => {
         {/* Mobile Menu Button */}
         <button
           className="md:hidden text-white focus:outline-none"
-          onClick={toggleMenu}
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
           aria-label="Toggle menu"
         >
           {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -180,48 +195,55 @@ const Navbar = ({ className }: NavbarProps = {}) => {
       {isMenuOpen && (
         <div className="md:hidden bg-simba-navy absolute top-16 left-0 w-full py-4 px-6 shadow-lg">
           <div className="flex flex-col space-y-4">
-            <a
-              href="/"
+            <Link
+              to="/"
               onClick={(e) => handleNavigation(e, "/")}
               className="hover:text-simba-gold transition-colors"
             >
               Home
-            </a>
-            <a
-              href="/about"
+            </Link>
+            <Link
+              to="/about"
               onClick={(e) => handleNavigation(e, "/about")}
               className="hover:text-simba-gold transition-colors"
             >
               About Us
-            </a>
-            <a
-              href="/products"
+            </Link>
+            <Link
+              to="/products"
               onClick={(e) => handleNavigation(e, "/products")}
               className="hover:text-simba-gold transition-colors"
             >
               Products & Services
-            </a>
-            <a
-              href="/trading-process"
+            </Link>
+            <Link
+              to="/trading-process"
               onClick={(e) => handleNavigation(e, "/trading-process")}
               className="hover:text-simba-gold transition-colors"
             >
               Trading Process
-            </a>
-            <a
-              href="/compliance"
+            </Link>
+            <Link
+              to="/compliance"
               onClick={(e) => handleNavigation(e, "/compliance")}
               className="hover:text-simba-gold transition-colors"
             >
               Compliance
-            </a>
-            <a
-              href="/contact"
+            </Link>
+            <Link
+              to="/contact"
               onClick={(e) => handleNavigation(e, "/contact")}
               className="hover:text-simba-gold transition-colors"
             >
               Contact
-            </a>
+            </Link>
+            <Link
+              to="/admin"
+              onClick={(e) => handleNavigation(e, "/admin")}
+              className="hover:text-simba-gold transition-colors"
+            >
+              Admin
+            </Link>
             <Button
               className="bg-simba-gold hover:bg-simba-darkgold text-white w-full"
               onClick={() => {

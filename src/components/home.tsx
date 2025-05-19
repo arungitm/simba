@@ -19,8 +19,10 @@ import {
   MapPin,
 } from "lucide-react";
 import useScrollToTop from "@/hooks/useScrollToTop";
+import { useNavigate } from "react-router-dom";
 
 const Home = () => {
+  const navigate = useNavigate();
   const { isVisible, scrollToTop } = useScrollToTop({
     requireUserGesture: true,
   });
@@ -156,9 +158,7 @@ const Home = () => {
             <Button
               variant="outline"
               className="border-simba-navy text-simba-navy hover:bg-simba-navy hover:text-white"
-              onClick={() => {
-                console.log("Would navigate to all products page");
-              }}
+              onClick={() => navigate("/products")}
             >
               View All Products
             </Button>
@@ -232,17 +232,17 @@ const Home = () => {
             className="relative rounded-lg overflow-hidden shadow-lg h-[400px] bg-white"
           >
             <img
-              src="https://images.unsplash.com/photo-1526778548025-fa2f459cd5ce?w=1200&q=80"
+              src="https://images.unsplash.com/photo-1589519160732-57fc498494f8?w=1200&q=80"
               alt="World Map"
-              className="w-full h-full object-cover opacity-20"
+              className="w-full h-full object-cover opacity-25"
             />
             <div className="absolute inset-0">
               {/* UAE */}
-              <div className="absolute top-[45%] left-[60%] transform -translate-x-1/2 -translate-y-1/2">
+              <div className="absolute top-[42%] left-[62%] transform -translate-x-1/2 -translate-y-1/2">
                 <div className="relative">
-                  <MapPin className="h-8 w-8 text-simba-gold" />
+                  <MapPin className="h-10 w-10 text-simba-gold" />
                   <div
-                    className="absolute top-0 left-0 h-8 w-8 bg-simba-gold rounded-full animate-ping opacity-75"
+                    className="absolute top-0 left-0 h-10 w-10 bg-simba-gold rounded-full animate-ping opacity-75"
                     style={{ animationDuration: "3s" }}
                   ></div>
                 </div>
@@ -252,21 +252,33 @@ const Home = () => {
                 </div>
               </div>
 
-              {/* Africa */}
-              <div className="absolute top-[55%] left-[52%] transform -translate-x-1/2 -translate-y-1/2">
-                <MapPin className="h-6 w-6 text-simba-navy" />
-                <div className="mt-2 bg-white p-2 rounded shadow-md">
-                  <p className="text-xs font-bold">Kenya</p>
-                  <p className="text-xs">Nairobi</p>
+              {/* India */}
+              <div className="absolute top-[45%] left-[70%] transform -translate-x-1/2 -translate-y-1/2">
+                <div className="relative">
+                  <MapPin className="h-8 w-8 text-simba-navy" />
+                  <div
+                    className="absolute top-0 left-0 h-8 w-8 bg-simba-navy rounded-full animate-ping opacity-75"
+                    style={{ animationDuration: "3s" }}
+                  ></div>
                 </div>
-              </div>
-
-              {/* Asia */}
-              <div className="absolute top-[40%] left-[70%] transform -translate-x-1/2 -translate-y-1/2">
-                <MapPin className="h-6 w-6 text-simba-navy" />
                 <div className="mt-2 bg-white p-2 rounded shadow-md">
                   <p className="text-xs font-bold">India</p>
                   <p className="text-xs">Mumbai</p>
+                </div>
+              </div>
+
+              {/* Singapore */}
+              <div className="absolute top-[52%] left-[78%] transform -translate-x-1/2 -translate-y-1/2">
+                <div className="relative">
+                  <MapPin className="h-8 w-8 text-simba-navy" />
+                  <div
+                    className="absolute top-0 left-0 h-8 w-8 bg-simba-navy rounded-full animate-ping opacity-75"
+                    style={{ animationDuration: "3s" }}
+                  ></div>
+                </div>
+                <div className="mt-2 bg-white p-2 rounded shadow-md">
+                  <p className="text-xs font-bold">Singapore</p>
+                  <p className="text-xs">Singapore</p>
                 </div>
               </div>
             </div>
@@ -274,9 +286,8 @@ const Home = () => {
 
           <div className="mt-8 flex flex-wrap justify-center gap-4">
             <Badge className="bg-simba-navy text-white">Middle East</Badge>
-            <Badge className="bg-simba-navy text-white">Africa</Badge>
-            <Badge className="bg-simba-navy text-white">Asia</Badge>
-            <Badge className="bg-simba-navy text-white">Europe</Badge>
+            <Badge className="bg-simba-navy text-white">South Asia</Badge>
+            <Badge className="bg-simba-navy text-white">Southeast Asia</Badge>
             <Badge className="bg-simba-gold text-white">
               20+ Countries Served
             </Badge>
@@ -400,7 +411,7 @@ const Home = () => {
               <p className="text-white/70 mb-4">
                 Global commodities trading with Hamriyah Free Zone excellence.
               </p>
-              <p className="text-white/70">HFZ License: #XXXXX</p>
+              <p className="text-white/70">HFZ License: #38865</p>
             </div>
             <div>
               <h4 className="text-lg font-semibold mb-4">Products</h4>
@@ -426,7 +437,7 @@ const Home = () => {
                 <p>Hamriyah Free Zone</p>
                 <p>Sharjah, United Arab Emirates</p>
                 <p className="mt-2">Email: info@simbaventura.com</p>
-                <p>Tel: +971 XX XXX XXXX</p>
+                <p>Tel: +971526944179</p>
               </address>
             </div>
           </div>

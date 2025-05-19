@@ -34,15 +34,34 @@ import {
   TooltipTrigger,
 } from "./ui/tooltip";
 
+// Desert theme colors
+const desertTheme = {
+  sand: "#E5C59E",
+  darksand: "#C4A484",
+  lightsand: "#F5DEB3",
+  desert: "#EDC9AF",
+  dune: "#C19A6B",
+  accent: "#F5A623",
+};
+
 interface TradingStep {
   id: number;
   title: string;
   description: string;
-  icon: React.ReactNode;
-  status: "completed" | "current" | "upcoming" | "delayed";
+  icon: React.ElementType;
+  status: "completed" | "current" | "upcoming" | "delayed" | "partially_completed";
   requiredActions?: string[];
+  completedActions?: string[];
   delayReason?: string;
   estimatedCompletion?: string;
+  lastUpdated?: string;
+  shipmentId?: string;
+  client?: {
+    id: string;
+    name: string;
+    email: string;
+    phone?: string;
+  };
   documents?: {
     name: string;
     type: string;
@@ -53,14 +72,67 @@ interface TradingStep {
     message: string;
     isImportant?: boolean;
   }[];
+  notes?: string;
 }
 
 interface ShipmentDetails {
   shipmentId: string;
   clientName: string;
   email?: string;
-  notificationsEnabled?: boolean;
+  notificationsEnabled: boolean;
 }
+
+// Add PREDEFINED_STEPS at the top of the file for reference
+const PREDEFINED_STEPS = [
+  {
+    id: 1,
+    title: "Enquiry",
+    description: "Submit your product requirements and specifications through our RFQ form.",
+    icon: MessageSquare,
+    status: "completed",
+    requiredActions: [],
+  },
+  {
+    id: 2,
+    title: "Quote",
+    description: "Receive a detailed quotation based on your requirements within 24-48 hours.",
+    icon: FileText,
+    status: "completed",
+    requiredActions: [],
+  },
+  {
+    id: 3,
+    title: "Contract",
+    description: "Review and sign the contract with agreed terms, specifications, and payment conditions.",
+    icon: ClipboardCheck,
+    status: "current",
+    requiredActions: ["Sign contract", "Submit payment proof"],
+  },
+  {
+    id: 4,
+    title: "Quality Assurance",
+    description: "Our quality control team inspects the products to ensure they meet all specifications and standards.",
+    icon: Search,
+    status: "upcoming",
+    requiredActions: [],
+  },
+  {
+    id: 5,
+    title: "Logistics",
+    description: "Coordinate shipping, documentation, and customs clearance based on agreed Incoterms.",
+    icon: Ship,
+    status: "delayed",
+    requiredActions: ["Confirm shipping address"],
+  },
+  {
+    id: 6,
+    title: "Delivery",
+    description: "Products are delivered to your specified location with all necessary documentation.",
+    icon: Package,
+    status: "upcoming",
+    requiredActions: [],
+  },
+];
 
 const TradingProcess = () => {
   const [shipmentDetails, setShipmentDetails] =
@@ -82,7 +154,7 @@ const TradingProcess = () => {
       title: "Enquiry",
       description:
         "Submit your product requirements and specifications through our RFQ form.",
-      icon: <MessageSquare className="h-8 w-8 text-[#F5A623]" />,
+      icon: MessageSquare,
       status: "completed",
       requiredActions: [],
       documents: [
@@ -109,7 +181,7 @@ const TradingProcess = () => {
       title: "Quote",
       description:
         "Receive a detailed quotation based on your requirements within 24-48 hours.",
-      icon: <FileText className="h-8 w-8 text-[#F5A623]" />,
+      icon: FileText,
       status: "completed",
       requiredActions: [],
       documents: [
@@ -141,7 +213,7 @@ const TradingProcess = () => {
       title: "Contract",
       description:
         "Review and sign the contract with agreed terms, specifications, and payment conditions.",
-      icon: <ClipboardCheck className="h-8 w-8 text-[#F5A623]" />,
+      icon: ClipboardCheck,
       status: "current",
       requiredActions: ["Sign contract", "Submit payment proof"],
       estimatedCompletion: "2023-10-15",
@@ -174,7 +246,7 @@ const TradingProcess = () => {
       title: "Quality Assurance",
       description:
         "Our quality control team inspects the products to ensure they meet all specifications and standards.",
-      icon: <Search className="h-8 w-8 text-[#F5A623]" />,
+      icon: Search,
       status: "upcoming",
       requiredActions: [],
       estimatedCompletion: "2023-10-30",
@@ -197,7 +269,7 @@ const TradingProcess = () => {
       title: "Logistics",
       description:
         "Coordinate shipping, documentation, and customs clearance based on agreed Incoterms.",
-      icon: <Ship className="h-8 w-8 text-[#F5A623]" />,
+      icon: Ship,
       status: "delayed",
       requiredActions: ["Confirm shipping address"],
       delayReason: "Customs documentation pending",
@@ -226,7 +298,7 @@ const TradingProcess = () => {
       title: "Delivery",
       description:
         "Products are delivered to your specified location with all necessary documentation.",
-      icon: <Package className="h-8 w-8 text-[#F5A623]" />,
+      icon: Package,
       status: "upcoming",
       requiredActions: [],
       estimatedCompletion: "2023-11-30",
@@ -236,6 +308,36 @@ const TradingProcess = () => {
   ]);
 
   const [expandedStep, setExpandedStep] = useState<number | null>(3); // Default to current step
+
+  // Add state for syncing with admin
+  const [adminSteps, setAdminSteps] = useState<TradingStep[]>([]);
+
+  // Effect to sync with admin steps (reconstruct from PREDEFINED_STEPS)
+  useEffect(() => {
+    const fetchAdminSteps = async () => {
+      try {
+        const storedSteps = localStorage.getItem('tradingSteps');
+        if (storedSteps) {
+          const parsedSteps = JSON.parse(storedSteps);
+          const reconstructed = parsedSteps.map((savedStep: any) => {
+            const template = PREDEFINED_STEPS.find(s => s.id === savedStep.id);
+            return {
+              ...template,
+              ...savedStep,
+              icon: template.icon,
+            };
+          });
+          setAdminSteps(reconstructed);
+          setTradingSteps(reconstructed);
+        }
+      } catch (error) {
+        console.error('Error syncing with admin steps:', error);
+      }
+    };
+    fetchAdminSteps();
+    const interval = setInterval(fetchAdminSteps, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Effect to simulate real-time updates
   useEffect(() => {
@@ -298,13 +400,13 @@ const TradingProcess = () => {
   const getStatusClass = (status: string) => {
     switch (status) {
       case "completed":
-        return "bg-green-100 text-green-800";
+        return "bg-[#E5C59E] text-[#0B1C3F]";
       case "current":
-        return "bg-blue-100 text-blue-800";
+        return "bg-[#F5A623] text-white";
       case "delayed":
         return "bg-red-100 text-red-800";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-[#F5DEB3] text-[#0B1C3F]";
     }
   };
 
@@ -312,8 +414,13 @@ const TradingProcess = () => {
     if (inputShipmentId.trim() && inputClientName.trim()) {
       setIsLoading(true);
 
-      // Simulate API call
-      setTimeout(() => {
+      // Find steps for this shipment
+      const shipmentSteps = adminSteps.filter(
+        step => step.shipmentId === inputShipmentId.trim() &&
+        step.client.name === inputClientName.trim()
+      );
+
+      if (shipmentSteps.length > 0) {
         setShipmentDetails({
           shipmentId: inputShipmentId.trim(),
           clientName: inputClientName.trim(),
@@ -321,8 +428,27 @@ const TradingProcess = () => {
           notificationsEnabled: notificationsEnabled,
         });
         setShowSpecificProcess(true);
-        setIsLoading(false);
-      }, 1000);
+        
+        // Update trading steps with the found shipment steps
+        setTradingSteps(prev => prev.map(step => {
+          const shipmentStep = shipmentSteps.find(s => s.id === step.id);
+          if (shipmentStep) {
+            return {
+              ...step,
+              status: shipmentStep.status,
+              requiredActions: shipmentStep.requiredActions,
+              completedActions: shipmentStep.completedActions,
+              estimatedCompletion: shipmentStep.estimatedCompletion,
+              lastUpdated: shipmentStep.lastUpdated
+            };
+          }
+          return step;
+        }));
+      } else {
+        alert('No shipment found with the provided details');
+      }
+      
+      setIsLoading(false);
     }
   };
 
@@ -407,9 +533,9 @@ const TradingProcess = () => {
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 py-8 bg-white">
-      <div className="mb-8 p-6 bg-gray-50 rounded-lg shadow-sm border border-gray-100">
-        <h3 className="text-xl font-bold text-[#0B1C3F] mb-4">
+    <div className="w-full max-w-7xl mx-auto px-4 py-8 bg-[#F5DEB3]/10">
+      <div className="mb-8 p-6 bg-[#EDC9AF]/20 rounded-lg shadow-sm border border-[#C4A484]/20">
+        <h3 className="text-xl font-bold text-[#C4A484] mb-4">
           Track Your Shipment
         </h3>
         <div className="grid md:grid-cols-3 gap-4 mb-4">
@@ -466,7 +592,7 @@ const TradingProcess = () => {
           </div>
           <Button
             onClick={handleSubmitDetails}
-            className="bg-[#F5A623] hover:bg-[#F5A623]/90 text-white"
+            className="bg-[#F5A623] hover:bg-[#C19A6B] text-white transition-colors duration-300"
             disabled={
               isLoading || !inputShipmentId.trim() || !inputClientName.trim()
             }
@@ -623,10 +749,25 @@ const TradingProcess = () => {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
         {showSpecificProcess && (
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="timeline">Timeline</TabsTrigger>
-            <TabsTrigger value="documents">Documents</TabsTrigger>
-            <TabsTrigger value="updates">Updates</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 bg-[#EDC9AF]/30">
+            <TabsTrigger 
+              value="timeline"
+              className="data-[state=active]:bg-[#F5A623] data-[state=active]:text-white text-[#C4A484]"
+            >
+              Timeline
+            </TabsTrigger>
+            <TabsTrigger 
+              value="documents"
+              className="data-[state=active]:bg-[#F5A623] data-[state=active]:text-white text-[#C4A484]"
+            >
+              Documents
+            </TabsTrigger>
+            <TabsTrigger 
+              value="updates"
+              className="data-[state=active]:bg-[#F5A623] data-[state=active]:text-white text-[#C4A484]"
+            >
+              Updates
+            </TabsTrigger>
           </TabsList>
         )}
 
@@ -642,15 +783,25 @@ const TradingProcess = () => {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.3 }}
                     >
-                      <Card className="shadow-md hover:shadow-lg transition-shadow duration-300 border-l-4 border-l-gray-300">
+                      <Card
+                        className={`shadow-md hover:shadow-lg transition-shadow duration-300 border-l-4 ${
+                          step.status === "completed"
+                            ? "border-l-[#C4A484]"
+                            : step.status === "current"
+                            ? "border-l-[#F5A623]"
+                            : step.status === "delayed"
+                            ? "border-l-red-500"
+                            : "border-l-[#F5DEB3]"
+                        } bg-[#EDC9AF]/10 hover:bg-[#EDC9AF]/20`}
+                      >
                         <CardContent className="p-4">
                           <div
                             className="flex items-center justify-between cursor-pointer"
                             onClick={() => toggleExpand(step.id)}
                           >
                             <div className="flex items-center gap-3">
-                              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-[#0B1C3F]/10">
-                                {step.icon}
+                              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-[#EDC9AF] transition-all duration-300 hover:bg-[#C19A6B]">
+                                <step.icon className="h-8 w-8 text-[#F5A623]" />
                               </div>
                               <div>
                                 <span className="text-[#0B1C3F] font-bold">
@@ -694,7 +845,15 @@ const TradingProcess = () => {
                       transition={{ duration: 0.3 }}
                     >
                       <Card
-                        className={`shadow-md hover:shadow-lg transition-shadow duration-300 border-l-4 ${step.status === "completed" ? "border-l-green-500" : step.status === "current" ? "border-l-blue-500" : step.status === "delayed" ? "border-l-red-500" : "border-l-gray-300"}`}
+                        className={`shadow-md hover:shadow-lg transition-shadow duration-300 border-l-4 ${
+                          step.status === "completed"
+                            ? "border-l-[#C4A484]"
+                            : step.status === "current"
+                            ? "border-l-[#F5A623]"
+                            : step.status === "delayed"
+                            ? "border-l-red-500"
+                            : "border-l-[#F5DEB3]"
+                        } bg-[#EDC9AF]/10 hover:bg-[#EDC9AF]/20`}
                       >
                         <CardContent className="p-4">
                           <div
@@ -702,8 +861,8 @@ const TradingProcess = () => {
                             onClick={() => toggleExpand(step.id)}
                           >
                             <div className="flex items-center gap-3">
-                              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-[#0B1C3F]/10">
-                                {step.icon}
+                              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-[#EDC9AF] transition-all duration-300 hover:bg-[#C19A6B]">
+                                <step.icon className="h-8 w-8 text-[#F5A623]" />
                               </div>
                               <div>
                                 <span className="text-[#0B1C3F] font-bold">
@@ -816,8 +975,8 @@ const TradingProcess = () => {
                     >
                       {/* Timeline dot */}
                       <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100">
-                          <Clock className="h-5 w-5 text-gray-400" />
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[#EDC9AF]">
+                          <Clock className="h-5 w-5 text-[#C4A484]" />
                         </div>
                       </div>
 
@@ -828,15 +987,15 @@ const TradingProcess = () => {
                           className={`${index % 2 === 0 ? "col-start-1 pr-12 text-right" : "col-start-2 pl-12"}`}
                         >
                           <Card
-                            className="h-full shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer"
+                            className={`h-full shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer bg-[#EDC9AF]/10 hover:bg-[#EDC9AF]/20`}
                             onClick={() => toggleExpand(step.id)}
                           >
                             <CardContent className="p-6">
                               <div
                                 className={`flex items-center mb-4 gap-3 ${index % 2 === 0 ? "justify-end" : "justify-start"}`}
                               >
-                                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-[#0B1C3F]/10 transition-all duration-300 hover:bg-[#0B1C3F]/20">
-                                  {step.icon}
+                                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-[#EDC9AF] transition-all duration-300 hover:bg-[#C19A6B] transform hover:rotate-6">
+                                  <step.icon className="h-8 w-8 text-[#F5A623]" />
                                 </div>
                                 <div className="flex items-center">
                                   <span className="text-[#0B1C3F] font-bold text-xl">
@@ -886,15 +1045,15 @@ const TradingProcess = () => {
                             className={`${index % 2 === 0 ? "col-start-1 pr-12 text-right" : "col-start-2 pl-12"}`}
                           >
                             <Card
-                              className={`h-full shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer ${expandedStep === step.id ? "ring-2 ring-[#F5A623]" : ""}`}
+                              className={`h-full shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer bg-[#EDC9AF]/10 hover:bg-[#EDC9AF]/20`}
                               onClick={() => toggleExpand(step.id)}
                             >
                               <CardContent className="p-6">
                                 <div
                                   className={`flex items-center mb-4 gap-3 ${index % 2 === 0 ? "justify-end" : "justify-start"}`}
                                 >
-                                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-[#0B1C3F]/10 transition-all duration-300 hover:bg-[#0B1C3F]/20 transform hover:rotate-6">
-                                    {step.icon}
+                                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-[#EDC9AF] transition-all duration-300 hover:bg-[#C19A6B] transform hover:rotate-6">
+                                    <step.icon className="h-8 w-8 text-[#F5A623]" />
                                   </div>
                                   <div className="flex items-center">
                                     <span className="text-[#0B1C3F] font-bold text-xl">
