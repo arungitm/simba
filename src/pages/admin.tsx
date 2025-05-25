@@ -1,5 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Navbar from "@/components/Navbar";
+import { supabase } from "../lib/supabaseClient";
+import { Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import TradingProcessAdmin from "@/components/TradingProcessAdmin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,8 +11,11 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import AddProductForm from "@/components/AddProductForm"; // Import new component
+import AdminProductList from "@/components/AdminProductList"; // Import new component
 
-interface Product {
+// Export Product interface for child components
+export interface Product {
   id: string;
   title: string;
   description: string;
@@ -21,13 +27,15 @@ interface Product {
 
 const AdminPage = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(""); // General auth errors
   const [activeTab, setActiveTab] = useState("products");
+
+  // Product specific states
   const [products, setProducts] = useState<Product[]>([]);
   const [newProduct, setNewProduct] = useState<Product>({
-    id: "",
+    id: "", // Will be set by Supabase
     title: "",
     description: "",
     category: "",
@@ -35,33 +43,170 @@ const AdminPage = () => {
     specifications: [],
     certifications: []
   });
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [loadProductsError, setLoadProductsError] = useState<string | null>(null);
+  const [isAddingProduct, setIsAddingProduct] = useState(false);
+  const [addProductError, setAddProductError] = useState<string | null>(null);
+  const [isDeletingProduct, setIsDeletingProduct] = useState<string | null>(null); // Store ID of product being deleted
+  const [deleteProductError, setDeleteProductError] = useState<string | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
+
+  const fetchProducts = useCallback(async () => {
+    if (!isLoggedIn) return;
+    setIsLoadingProducts(true);
+    setLoadProductsError(null);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated to fetch products.");
+
+      const { data, error: fetchError } = await supabase
+        .from("products")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (fetchError) throw fetchError;
+      setProducts(data.map(p => ({ ...p, id: p.id.toString() })) || []);
+    } catch (err: any) {
+      setLoadProductsError(err.message || "Failed to load products.");
+      console.error("Error fetching products:", err);
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    const checkSessionAndFetchProducts = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const loggedIn = !!session;
+      setIsLoggedIn(loggedIn);
+      if (loggedIn) {
+        fetchProducts();
+      }
+    };
+    checkSessionAndFetchProducts();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const loggedIn = !!session;
+        setIsLoggedIn(loggedIn);
+        if (loggedIn) {
+          fetchProducts(); // Fetch products when user logs in
+        } else {
+          setProducts([]); // Clear products when user logs out
+        }
+      }
+    );
+
+    return () => {
+      authListener?.unsubscribe();
+    };
+  }, [fetchProducts]);
+
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (username === "admin" && password === "simba2024") {
-      setIsLoggedIn(true);
-      setError("");
-    } else {
-      setError("Invalid credentials");
+    setError("");
+    try {
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (signInError) {
+        throw signInError;
+      }
+      if (data.user) {
+        setIsLoggedIn(true);
+      }
+    } catch (signInError: any) {
+      setError(signInError.message || "Invalid credentials");
+      console.error("Login error:", signInError);
     }
   };
 
-  const handleAddProduct = (e: React.FormEvent) => {
-    e.preventDefault();
-    setProducts([...products, { ...newProduct, id: Date.now().toString() }]);
-    setNewProduct({
-      id: "",
-      title: "",
-      description: "",
-      category: "",
-      image: "",
-      specifications: [],
-      certifications: []
-    });
+  const handleLogout = async () => {
+    setError("");
+    try {
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) {
+        throw signOutError;
+      }
+      setIsLoggedIn(false);
+    } catch (signOutError: any) {
+      setError(signOutError.message || "Failed to logout");
+      console.error("Logout error:", signOutError);
+    }
   };
 
-  const handleDeleteProduct = (id: string) => {
-    setProducts(products.filter(product => product.id !== id));
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsAddingProduct(true);
+    setAddProductError(null);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated to add products.");
+
+      // Create a product object for Supabase, excluding client-side 'id'
+      const productToInsert = {
+        ...newProduct,
+        user_id: user.id,
+        id: undefined, // Ensure Supabase generates the ID
+      };
+      // Remove id from the object to be inserted if it's an empty string or null
+      if (productToInsert.id === "" || productToInsert.id === null) {
+        delete productToInsert.id;
+      }
+
+
+      const { data: insertedProduct, error: insertError } = await supabase
+        .from("products")
+        .insert(productToInsert)
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      if (insertedProduct) {
+        setProducts(prevProducts => [{ ...insertedProduct, id: insertedProduct.id.toString() }, ...prevProducts]);
+        setNewProduct({ // Reset form
+          id: "",
+          title: "",
+          description: "",
+          category: "",
+          image: "",
+          specifications: [],
+          certifications: []
+        });
+      }
+    } catch (err: any) {
+      setAddProductError(err.message || "Failed to add product.");
+      console.error("Error adding product:", err);
+    } finally {
+      setIsAddingProduct(false);
+    }
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    setIsDeletingProduct(id);
+    setDeleteProductError(null);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated to delete products.");
+
+      const { error: deleteError } = await supabase
+        .from("products")
+        .delete()
+        .match({ id: id, user_id: user.id }); // Ensure user can only delete their own products
+
+      if (deleteError) throw deleteError;
+
+      setProducts(prevProducts => prevProducts.filter(product => product.id !== id));
+    } catch (err: any) {
+      setDeleteProductError(err.message || "Failed to delete product.");
+      console.error("Error deleting product:", err);
+    } finally {
+      setIsDeletingProduct(null);
+    }
   };
 
   if (!isLoggedIn) {
@@ -75,12 +220,12 @@ const AdminPage = () => {
               <form onSubmit={handleLogin}>
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="username">Username</Label>
+                    <Label htmlFor="email">Email</Label>
                     <Input
-                      id="username"
-                      type="text"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       required
                     />
                   </div>
@@ -118,13 +263,15 @@ const AdminPage = () => {
             <h1 className="text-2xl font-bold text-simba-navy">Admin Dashboard</h1>
             <Button
               variant="outline"
-              onClick={() => setIsLoggedIn(false)}
+              onClick={handleLogout}
               className="border-simba-navy text-simba-navy hover:bg-simba-navy hover:text-white"
             >
               Logout
             </Button>
           </div>
-
+          {error && (
+            <p className="text-red-500 text-sm mb-4">{error}</p>
+          )}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <TabsList className="bg-white">
               <TabsTrigger value="products">Products Management</TabsTrigger>
@@ -132,86 +279,21 @@ const AdminPage = () => {
             </TabsList>
 
             <TabsContent value="products" className="space-y-4">
-              <Card className="p-6">
-                <h2 className="text-xl font-semibold mb-4">Add New Product</h2>
-                <form onSubmit={handleAddProduct} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="title">Product Title</Label>
-                      <Input
-                        id="title"
-                        value={newProduct.title}
-                        onChange={(e) => setNewProduct({ ...newProduct, title: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="category">Category</Label>
-                      <Select
-                        value={newProduct.category}
-                        onValueChange={(value) => setNewProduct({ ...newProduct, category: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="petroleum">Petroleum Products</SelectItem>
-                          <SelectItem value="coal">Coal & Minerals</SelectItem>
-                          <SelectItem value="foodstuffs">Foodstuffs</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      value={newProduct.description}
-                      onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="image">Image URL</Label>
-                    <Input
-                      id="image"
-                      value={newProduct.image}
-                      onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <Button type="submit" className="bg-simba-navy hover:bg-simba-darknavy text-white">
-                    Add Product
-                  </Button>
-                </form>
-              </Card>
-
-              <Card className="p-6">
-                <h2 className="text-xl font-semibold mb-4">Product List</h2>
-                <div className="space-y-4">
-                  {products.map((product) => (
-                    <div
-                      key={product.id}
-                      className="flex items-center justify-between p-4 bg-white rounded-lg shadow"
-                    >
-                      <div>
-                        <h3 className="font-semibold">{product.title}</h3>
-                        <p className="text-sm text-gray-600">{product.category}</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeleteProduct(product.id)}
-                          className="text-red-600 border-red-600 hover:bg-red-50"
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
+              <AddProductForm
+                newProduct={newProduct}
+                setNewProduct={setNewProduct}
+                handleAddProduct={handleAddProduct}
+                isAddingProduct={isAddingProduct}
+                addProductError={addProductError}
+              />
+              <AdminProductList
+                products={products}
+                handleDeleteProduct={handleDeleteProduct}
+                isDeletingProduct={isDeletingProduct}
+                deleteProductError={deleteProductError}
+                isLoadingProducts={isLoadingProducts}
+                loadProductsError={loadProductsError}
+              />
             </TabsContent>
 
             <TabsContent value="trading">

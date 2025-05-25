@@ -17,6 +17,7 @@ interface ProductDetailProps {
     documents?: {
       name: string;
       type: string;
+      url: string; // Added URL for download link
     }[];
   };
   onBack: () => void;
@@ -119,15 +120,22 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ product, onBack }) => {
                   <ul className="space-y-2">
                     {product.documents.map((doc, index) => (
                       <li key={index}>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start text-left"
-                          onClick={() => console.log(`Download ${doc.name}`)}
+                        <a
+                          href={doc.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          download={doc.name}
+                          className="no-underline"
                         >
-                          <FileText className="h-4 w-4 mr-2" />
-                          <span className="text-sm">{doc.name}</span>
-                          <Download className="h-4 w-4 ml-auto" />
-                        </Button>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start text-left text-simba-navy hover:bg-simba-sand/50"
+                          >
+                            <FileText className="h-4 w-4 mr-2 flex-shrink-0" />
+                            <span className="text-sm truncate flex-grow">{doc.name} ({doc.type.toUpperCase()})</span>
+                            <Download className="h-4 w-4 ml-2 flex-shrink-0" />
+                          </Button>
+                        </a>
                       </li>
                     ))}
                   </ul>

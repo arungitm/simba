@@ -10,6 +10,7 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
+  DollarSign, 
   ChevronDown,
   ChevronUp,
   Send,
@@ -33,63 +34,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "./ui/tooltip";
+import { supabase } from "../lib/supabaseClient"; 
 
-// Desert theme colors
-const desertTheme = {
-  sand: "#E5C59E",
-  darksand: "#C4A484",
-  lightsand: "#F5DEB3",
-  desert: "#EDC9AF",
-  dune: "#C19A6B",
-  accent: "#F5A623",
-};
-
-interface TradingStep {
-  id: number;
-  title: string;
-  description: string;
-  icon: React.ElementType;
-  status: "completed" | "current" | "upcoming" | "delayed" | "partially_completed";
-  requiredActions?: string[];
-  completedActions?: string[];
-  delayReason?: string;
-  estimatedCompletion?: string;
-  lastUpdated?: string;
-  shipmentId?: string;
-  client?: {
-    id: string;
-    name: string;
-    email: string;
-    phone?: string;
-  };
-  documents?: {
-    name: string;
-    type: string;
-    url: string;
-  }[];
-  updates?: {
-    date: string;
-    message: string;
-    isImportant?: boolean;
-  }[];
-  notes?: string;
-}
-
-interface ShipmentDetails {
-  shipmentId: string;
-  clientName: string;
-  email?: string;
-  notificationsEnabled: boolean;
-}
-
-// Add PREDEFINED_STEPS at the top of the file for reference
 const PREDEFINED_STEPS = [
   {
     id: 1,
     title: "Enquiry",
     description: "Submit your product requirements and specifications through our RFQ form.",
     icon: MessageSquare,
-    status: "completed",
+    status: "completed", 
     requiredActions: [],
   },
   {
@@ -121,8 +74,9 @@ const PREDEFINED_STEPS = [
     title: "Logistics",
     description: "Coordinate shipping, documentation, and customs clearance based on agreed Incoterms.",
     icon: Ship,
-    status: "delayed",
+    status: "delayed", 
     requiredActions: ["Confirm shipping address"],
+    delayReason: "Customs documentation pending", 
   },
   {
     id: 6,
@@ -134,402 +88,222 @@ const PREDEFINED_STEPS = [
   },
 ];
 
+interface Client { 
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+}
+interface TradingStep { 
+  id: number; 
+  title: string;
+  description: string;
+  icon: React.ElementType;
+  status: "completed" | "current" | "upcoming" | "delayed" | "partially_completed";
+  required_actions?: string[]; 
+  completed_actions?: string[];
+  delay_reason?: string;
+  estimated_completion?: string;
+  last_updated?: string;
+  start_date?: string;
+  documents?: { name: string; type: string; url: string; }[]; 
+  updates?: { date: string; message: string; isImportant?: boolean; }[]; 
+  notes?: string;
+  shipmentId?: string; 
+  client?: Client;    
+}
+
+interface Shipment { 
+  id: string; 
+  shipment_id_display: string;
+  client_id: string;
+  client_name: string;
+  client_email: string;
+  client_phone?: string;
+  notifications_enabled: boolean;
+  user_id?: string; 
+}
+
+
 const TradingProcess = () => {
-  const [shipmentDetails, setShipmentDetails] =
-    useState<ShipmentDetails | null>(null);
+  const [shipmentData, setShipmentData] = useState<Shipment | null>(null);
+  const [tradingSteps, setTradingSteps] = useState<TradingStep[]>([]);
   const [inputShipmentId, setInputShipmentId] = useState("");
   const [inputClientName, setInputClientName] = useState("");
-  const [inputEmail, setInputEmail] = useState("");
+  const [inputEmail, setInputEmail] = useState(""); 
   const [showSpecificProcess, setShowSpecificProcess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null); 
   const [activeTab, setActiveTab] = useState("timeline");
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-
-  // Mock data - in a real app, this would come from an API
-  const [tradingSteps, setTradingSteps] = useState<TradingStep[]>([
-    {
-      id: 1,
-      title: "Enquiry",
-      description:
-        "Submit your product requirements and specifications through our RFQ form.",
-      icon: MessageSquare,
-      status: "completed",
-      requiredActions: [],
-      documents: [
-        {
-          name: "Initial Inquiry Form",
-          type: "PDF",
-          url: "#",
-        },
-      ],
-      updates: [
-        {
-          date: "2023-09-01",
-          message: "Inquiry received and processed",
-        },
-        {
-          date: "2023-09-02",
-          message: "Product specifications confirmed",
-          isImportant: true,
-        },
-      ],
-    },
-    {
-      id: 2,
-      title: "Quote",
-      description:
-        "Receive a detailed quotation based on your requirements within 24-48 hours.",
-      icon: FileText,
-      status: "completed",
-      requiredActions: [],
-      documents: [
-        {
-          name: "Quotation Document",
-          type: "PDF",
-          url: "#",
-        },
-        {
-          name: "Price Breakdown",
-          type: "XLSX",
-          url: "#",
-        },
-      ],
-      updates: [
-        {
-          date: "2023-09-05",
-          message: "Quotation prepared based on requirements",
-        },
-        {
-          date: "2023-09-07",
-          message: "Quotation sent to client",
-          isImportant: true,
-        },
-      ],
-    },
-    {
-      id: 3,
-      title: "Contract",
-      description:
-        "Review and sign the contract with agreed terms, specifications, and payment conditions.",
-      icon: ClipboardCheck,
-      status: "current",
-      requiredActions: ["Sign contract", "Submit payment proof"],
-      estimatedCompletion: "2023-10-15",
-      documents: [
-        {
-          name: "Contract Draft",
-          type: "PDF",
-          url: "#",
-        },
-        {
-          name: "Payment Instructions",
-          type: "PDF",
-          url: "#",
-        },
-      ],
-      updates: [
-        {
-          date: "2023-10-01",
-          message: "Contract draft sent for review",
-        },
-        {
-          date: "2023-10-05",
-          message: "Awaiting contract signature and payment proof",
-          isImportant: true,
-        },
-      ],
-    },
-    {
-      id: 4,
-      title: "Quality Assurance",
-      description:
-        "Our quality control team inspects the products to ensure they meet all specifications and standards.",
-      icon: Search,
-      status: "upcoming",
-      requiredActions: [],
-      estimatedCompletion: "2023-10-30",
-      documents: [
-        {
-          name: "Quality Standards Document",
-          type: "PDF",
-          url: "#",
-        },
-        {
-          name: "Inspection Checklist",
-          type: "PDF",
-          url: "#",
-        },
-      ],
-      updates: [],
-    },
-    {
-      id: 5,
-      title: "Logistics",
-      description:
-        "Coordinate shipping, documentation, and customs clearance based on agreed Incoterms.",
-      icon: Ship,
-      status: "delayed",
-      requiredActions: ["Confirm shipping address"],
-      delayReason: "Customs documentation pending",
-      estimatedCompletion: "2023-11-15",
-      documents: [
-        {
-          name: "Shipping Instructions Form",
-          type: "PDF",
-          url: "#",
-        },
-      ],
-      updates: [
-        {
-          date: "2023-11-01",
-          message: "Logistics planning initiated",
-        },
-        {
-          date: "2023-11-05",
-          message: "Delay in customs documentation processing",
-          isImportant: true,
-        },
-      ],
-    },
-    {
-      id: 6,
-      title: "Delivery",
-      description:
-        "Products are delivered to your specified location with all necessary documentation.",
-      icon: Package,
-      status: "upcoming",
-      requiredActions: [],
-      estimatedCompletion: "2023-11-30",
-      documents: [],
-      updates: [],
-    },
-  ]);
-
-  const [expandedStep, setExpandedStep] = useState<number | null>(3); // Default to current step
-
-  // Add state for syncing with admin
-  const [adminSteps, setAdminSteps] = useState<TradingStep[]>([]);
-
-  // Effect to sync with admin steps (reconstruct from PREDEFINED_STEPS)
-  useEffect(() => {
-    const fetchAdminSteps = async () => {
-      try {
-        const storedSteps = localStorage.getItem('tradingSteps');
-        if (storedSteps) {
-          const parsedSteps = JSON.parse(storedSteps);
-          const reconstructed = parsedSteps.map((savedStep: any) => {
-            const template = PREDEFINED_STEPS.find(s => s.id === savedStep.id);
-            return {
-              ...template,
-              ...savedStep,
-              icon: template.icon,
-            };
-          });
-          setAdminSteps(reconstructed);
-          setTradingSteps(reconstructed);
-        }
-      } catch (error) {
-        console.error('Error syncing with admin steps:', error);
-      }
-    };
-    fetchAdminSteps();
-    const interval = setInterval(fetchAdminSteps, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Effect to simulate real-time updates
-  useEffect(() => {
-    if (showSpecificProcess) {
-      const interval = setInterval(() => {
-        // Randomly add an update to a step
-        const randomStepIndex = Math.floor(Math.random() * tradingSteps.length);
-        const randomStep = tradingSteps[randomStepIndex];
-
-        if (
-          randomStep.status === "current" ||
-          randomStep.status === "delayed"
-        ) {
-          const newUpdate = {
-            date: new Date().toISOString().split("T")[0],
-            message: `Update: ${randomStep.title} process is being reviewed`,
-            isImportant: Math.random() > 0.7, // 30% chance of being important
-          };
-
-          setTradingSteps((prev) =>
-            prev.map((step, idx) =>
-              idx === randomStepIndex
-                ? {
-                    ...step,
-                    updates: [...(step.updates || []), newUpdate],
-                  }
-                : step,
-            ),
-          );
-
-          // Show notification if enabled
-          if (notificationsEnabled && newUpdate.isImportant) {
-            // In a real app, this would trigger a notification
-            console.log("Important notification:", newUpdate.message);
-          }
-        }
-      }, 30000); // Every 30 seconds
-
-      return () => clearInterval(interval);
-    }
-  }, [showSpecificProcess, tradingSteps, notificationsEnabled]);
+  const [expandedStep, setExpandedStep] = useState<number | null>(null); 
 
   const toggleExpand = (stepId: number) => {
     setExpandedStep(expandedStep === stepId ? null : stepId);
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: TradingStep["status"]) => {
     switch (status) {
       case "completed":
         return <CheckCircle className="h-5 w-5 text-green-500" />;
       case "current":
-        return <Clock className="h-5 w-5 text-blue-500 animate-pulse" />;
+        return <Clock className="h-5 w-5 text-simba-accent animate-pulse" />; 
       case "delayed":
         return <AlertCircle className="h-5 w-5 text-red-500" />;
-      default:
+      default: 
         return <Clock className="h-5 w-5 text-gray-400" />;
     }
   };
 
-  const getStatusClass = (status: string) => {
+  const getStatusClass = (status: TradingStep["status"]) => {
     switch (status) {
       case "completed":
-        return "bg-[#E5C59E] text-[#0B1C3F]";
+        return "bg-green-100 text-green-800";
       case "current":
-        return "bg-[#F5A623] text-white";
+        return "bg-simba-accent/20 text-simba-accent"; 
       case "delayed":
         return "bg-red-100 text-red-800";
-      default:
-        return "bg-[#F5DEB3] text-[#0B1C3F]";
+      case "partially_completed":
+        return "bg-yellow-100 text-yellow-800";
+      default: 
+        return "bg-gray-100 text-gray-800";
     }
   };
 
-  const handleSubmitDetails = () => {
-    if (inputShipmentId.trim() && inputClientName.trim()) {
-      setIsLoading(true);
+  const handleSubmitDetails = async () => {
+    if (!inputShipmentId.trim() || !inputClientName.trim()) {
+      setError("Please provide both Shipment ID and Client Name.");
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    setShipmentData(null);
+    setTradingSteps([]);
+    setShowSpecificProcess(false);
 
-      // Find steps for this shipment
-      const shipmentSteps = adminSteps.filter(
-        step => step.shipmentId === inputShipmentId.trim() &&
-        step.client.name === inputClientName.trim()
-      );
+    try {
+      const { data: shipmentResult, error: shipmentError } = await supabase
+        .from("shipments")
+        .select("*")
+        .eq("shipment_id_display", inputShipmentId.trim())
+        .eq("client_name", inputClientName.trim())
+        .limit(1)
+        .single(); 
 
-      if (shipmentSteps.length > 0) {
-        setShipmentDetails({
-          shipmentId: inputShipmentId.trim(),
-          clientName: inputClientName.trim(),
-          email: inputEmail.trim() || undefined,
-          notificationsEnabled: notificationsEnabled,
-        });
-        setShowSpecificProcess(true);
-        
-        // Update trading steps with the found shipment steps
-        setTradingSteps(prev => prev.map(step => {
-          const shipmentStep = shipmentSteps.find(s => s.id === step.id);
-          if (shipmentStep) {
-            return {
-              ...step,
-              status: shipmentStep.status,
-              requiredActions: shipmentStep.requiredActions,
-              completedActions: shipmentStep.completedActions,
-              estimatedCompletion: shipmentStep.estimatedCompletion,
-              lastUpdated: shipmentStep.lastUpdated
-            };
-          }
-          return step;
-        }));
-      } else {
-        alert('No shipment found with the provided details');
+      if (shipmentError) {
+        if (shipmentError.code === 'PGRST116') { 
+          throw new Error("Shipment not found or client name does not match. Please check your details.");
+        }
+        throw shipmentError;
       }
-      
+
+      if (shipmentResult) {
+        setShipmentData(shipmentResult as Shipment);
+        
+        const { data: stepsFromDb, error: stepsError } = await supabase
+          .from("trading_steps")
+          .select("*")
+          .eq("shipment_record_id", shipmentResult.id) 
+          .order("id", { ascending: true }); 
+
+        if (stepsError) throw stepsError;
+
+        const reconstructedSteps = stepsFromDb.map((dbStep: any) => {
+          const template = PREDEFINED_STEPS.find(s => s.id === dbStep.id); 
+          return {
+            ...dbStep, 
+            icon: template ? template.icon : AlertCircle,
+            title: template ? template.title : "Unknown Step",
+            description: template ? template.description : "No description available.",
+            shipmentId: shipmentResult.shipment_id_display, 
+            client: { 
+              id: shipmentResult.client_id,
+              name: shipmentResult.client_name,
+              email: shipmentResult.client_email,
+              phone: shipmentResult.client_phone,
+            },
+            requiredActions: dbStep.required_actions || (template?.requiredActions || []),
+            completedActions: dbStep.completed_actions || [],
+            delayReason: dbStep.delay_reason,
+            estimatedCompletion: dbStep.estimated_completion,
+            lastUpdated: dbStep.last_updated,
+            startDate: dbStep.start_date,
+            documents: dbStep.documents || [], 
+            updates: dbStep.updates || [],
+            notes: dbStep.notes,
+          };
+        });
+        setTradingSteps(reconstructedSteps as TradingStep[]);
+        setShowSpecificProcess(true);
+        const firstNonCompletedStep = reconstructedSteps.find(s => s.status === 'current' || s.status === 'delayed');
+        setExpandedStep(firstNonCompletedStep ? firstNonCompletedStep.id : (reconstructedSteps.length > 0 ? reconstructedSteps[0].id : null));
+
+      } else {
+         throw new Error("Shipment not found. Please verify your Shipment ID and Client Name.");
+      }
+    } catch (err: any) {
+      console.error("Error fetching shipment details:", err);
+      setError(err.message || "An error occurred while fetching shipment details.");
+      setShipmentData(null);
+      setTradingSteps([]);
+      setShowSpecificProcess(false);
+    } finally {
       setIsLoading(false);
     }
   };
-
-  // Filter steps based on selected status
+  
   const filteredSteps = filterStatus
     ? tradingSteps.filter((step) => step.status === filterStatus)
     : tradingSteps;
 
   const handleClearDetails = () => {
-    setShipmentDetails(null);
+    setShipmentData(null); 
     setInputShipmentId("");
     setInputClientName("");
     setInputEmail("");
-    setNotificationsEnabled(false);
     setShowSpecificProcess(false);
     setFilterStatus(null);
     setShowFilters(false);
     setActiveTab("timeline");
+    setError(null); 
+    setExpandedStep(null);
   };
 
-  const handleToggleNotifications = () => {
-    setNotificationsEnabled(!notificationsEnabled);
+  const handleToggleNotifications = async () => {
+    if (!shipmentData) return;
 
-    if (shipmentDetails) {
-      setShipmentDetails({
-        ...shipmentDetails,
-        notificationsEnabled: !notificationsEnabled,
-      });
+    const currentStatus = shipmentData.notifications_enabled;
+    const newStatus = !currentStatus;
+
+    setShipmentData(prev => prev ? { ...prev, notifications_enabled: newStatus } : null);
+
+    try {
+      const { error: updateError } = await supabase
+        .from("shipments")
+        .update({ notifications_enabled: newStatus })
+        .eq("id", shipmentData.id);
+
+      if (updateError) {
+        setShipmentData(prev => prev ? { ...prev, notifications_enabled: currentStatus } : null);
+        throw updateError;
+      }
+    } catch (err: any) {
+      console.error("Error updating notification status:", err);
+      setError(err.message || "Failed to update notification status.");
     }
   };
 
   const handleExportData = () => {
-    // In a real app, this would generate and download a report
-    alert("Exporting shipment data as PDF...");
+    console.warn("Feature not implemented: Exporting shipment data as PDF...");
   };
 
   const handleShareProcess = () => {
-    // In a real app, this would generate a shareable link
-    if (shipmentDetails?.email) {
-      alert(`Sharing process details with ${shipmentDetails.email}`);
+    if (shipmentData?.client_email) { 
+      console.warn(`Feature not implemented: Sharing process details with ${shipmentData.client_email}`);
     } else {
-      alert("Please provide an email to share the process details");
+      console.warn("Feature not implemented: Email not available for sharing.");
     }
-  };
-
-  const handleCompleteAction = (stepId: number, actionIndex: number) => {
-    setTradingSteps((prev) =>
-      prev.map((step) => {
-        if (step.id === stepId && step.requiredActions) {
-          // Remove the completed action
-          const updatedActions = [...step.requiredActions];
-          updatedActions.splice(actionIndex, 1);
-
-          // If no more actions, update status if it was the current step
-          let updatedStatus = step.status;
-          if (updatedActions.length === 0 && step.status === "current") {
-            updatedStatus = "completed";
-
-            // Find the next step and make it current
-            const nextStepIndex = prev.findIndex((s) => s.id === step.id) + 1;
-            if (nextStepIndex < prev.length) {
-              const nextStepId = prev[nextStepIndex].id;
-              setTimeout(() => {
-                setTradingSteps((current) =>
-                  current.map((s) =>
-                    s.id === nextStepId ? { ...s, status: "current" } : s,
-                  ),
-                );
-              }, 500);
-            }
-          }
-
-          return {
-            ...step,
-            requiredActions: updatedActions,
-            status: updatedStatus,
-          };
-        }
-        return step;
-      }),
-    );
   };
 
   return (
@@ -582,17 +356,17 @@ const TradingProcess = () => {
             <input
               type="checkbox"
               id="notifications"
-              checked={notificationsEnabled}
-              onChange={() => setNotificationsEnabled(!notificationsEnabled)}
-              className="h-4 w-4 rounded border-gray-300 text-[#F5A623] focus:ring-[#F5A623]"
+              checked={shipmentData?.notifications_enabled || false} 
+              onChange={handleToggleNotifications} 
+            className="h-4 w-4 rounded border-gray-300 text-simba-accent focus:ring-simba-accent"
             />
             <Label htmlFor="notifications" className="text-sm cursor-pointer">
-              Enable notifications
+              Enable email notifications (uses input below if provided, or client's email if available)
             </Label>
           </div>
           <Button
             onClick={handleSubmitDetails}
-            className="bg-[#F5A623] hover:bg-[#C19A6B] text-white transition-colors duration-300"
+            className="bg-simba-accent hover:bg-simba-darkgold text-white transition-colors duration-300"
             disabled={
               isLoading || !inputShipmentId.trim() || !inputClientName.trim()
             }
@@ -607,7 +381,7 @@ const TradingProcess = () => {
               </>
             )}
           </Button>
-          {showSpecificProcess && (
+          {showSpecificProcess && shipmentData && ( 
             <Button
               onClick={handleClearDetails}
               variant="outline"
@@ -617,14 +391,21 @@ const TradingProcess = () => {
             </Button>
           )}
         </div>
-        {shipmentDetails && (
-          <div className="mt-4 p-3 bg-blue-50 rounded border border-blue-100">
+        {error && (
+          <Alert variant="destructive" className="mt-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {shipmentData && showSpecificProcess && ( 
+          <div className="mt-4 p-3 bg-simba-lightsand/30 rounded border border-simba-sand">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm text-blue-800">
+              <p className="text-sm text-simba-navy">
                 <span className="font-semibold">Tracking:</span> Shipment{" "}
-                {shipmentDetails.shipmentId} for {shipmentDetails.clientName}
-                {shipmentDetails.email && (
-                  <span className="ml-1">({shipmentDetails.email})</span>
+                {shipmentData.shipment_id_display} for {shipmentData.client_name}
+                {(inputEmail || shipmentData.client_email) && (
+                  <span className="ml-1"> (Email: {inputEmail || shipmentData.client_email})</span>
                 )}
               </p>
               <div className="flex gap-2">
@@ -636,15 +417,16 @@ const TradingProcess = () => {
                         variant="outline"
                         className="h-8 px-2"
                         onClick={handleToggleNotifications}
+                        disabled={!shipmentData} 
                       >
                         <Bell
-                          className={`h-4 w-4 ${shipmentDetails.notificationsEnabled ? "text-[#F5A623]" : "text-gray-400"}`}
+                          className={`h-4 w-4 ${shipmentData.notifications_enabled ? "text-simba-accent" : "text-gray-400"}`}
                         />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>
-                        {shipmentDetails.notificationsEnabled
+                        {shipmentData.notifications_enabled
                           ? "Disable"
                           : "Enable"}{" "}
                         notifications
@@ -776,7 +558,7 @@ const TradingProcess = () => {
             {/* Mobile view */}
             <div className="md:hidden space-y-4">
               {!showSpecificProcess
-                ? tradingSteps.map((step) => (
+                ? PREDEFINED_STEPS.map((step) => ( 
                     <motion.div
                       key={step.id}
                       initial={{ opacity: 0, y: 10 }}
@@ -837,7 +619,7 @@ const TradingProcess = () => {
                       </Card>
                     </motion.div>
                   ))
-                : filteredSteps.map((step) => (
+                : filteredSteps.map((step, index) => ( 
                     <motion.div
                       key={step.id}
                       initial={{ opacity: 0, y: 10 }}
@@ -908,23 +690,9 @@ const TradingProcess = () => {
                                             (action, idx) => (
                                               <li
                                                 key={idx}
-                                                className="flex items-center justify-between"
+                                                className="text-left" 
                                               >
                                                 <span>{action}</span>
-                                                <Button
-                                                  size="sm"
-                                                  variant="ghost"
-                                                  className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 h-auto"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleCompleteAction(
-                                                      step.id,
-                                                      idx,
-                                                    );
-                                                  }}
-                                                >
-                                                  <CheckCircle className="h-4 w-4" />
-                                                </Button>
                                               </li>
                                             ),
                                           )}
@@ -968,7 +736,7 @@ const TradingProcess = () => {
             <div className="hidden md:block">
               {!showSpecificProcess ? (
                 <div className="space-y-12">
-                  {tradingSteps.map((step, index) => (
+                  {PREDEFINED_STEPS.map((step, index) => (
                     <div
                       key={step.id}
                       className="relative grid grid-cols-2 gap-8 items-center"
@@ -1017,162 +785,51 @@ const TradingProcess = () => {
                     </div>
                   ))}
                 </div>
-              ) : (
-                /* Timeline line */
+              ) : ( // This is the "else" part: showSpecificProcess is true
                 <>
-                  <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-gray-200 transform -translate-x-1/2"></div>
+                  {/* Timeline line - Render only if there are steps to display */}
+                  {filteredSteps.length > 0 && (
+                    <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-gray-200 transform -translate-x-1/2"></div>
+                  )}
+                  
+                  {/* Timeline steps or empty state */}
+                  {filteredSteps.length > 0 && (
+                    <div className="space-y-12">
+                      {filteredSteps.map((step, index) => (
+                        <div
+                          key={step.id}
+                          className="relative grid grid-cols-2 gap-8 items-center"
+                        >
+                          {/* Timeline dot with status */}
+                          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+                            <div
+                              className={`w-8 h-8 rounded-full flex items-center justify-center bg-gray-200`} // Simplified for debugging
+                            >
+                              {getStatusIcon(step.status)}
+                            </div>
+                          </div>
 
-                  {/* Timeline steps */}
-                  <div className="space-y-12">
-                    {filteredSteps.map((step, index) => (
-                      <div
-                        key={step.id}
-                        className="relative grid grid-cols-2 gap-8 items-center"
-                      >
-                        {/* Timeline dot with status */}
-                        <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
-                          <div
-                            className={`w-8 h-8 rounded-full flex items-center justify-center ${step.status === "completed" ? "bg-green-100" : step.status === "current" ? "bg-blue-100" : step.status === "delayed" ? "bg-red-100" : "bg-gray-100"}`}
-                          >
-                            {getStatusIcon(step.status)}
+                          {/* Content positioning based on even/odd */}
+                          <div className={`contents`}>
+                           {/* Simplified content for debugging */}
+                          <div className={`${index % 2 === 0 ? "col-start-1 pr-12 text-right" : "col-start-2 pl-12"}`}>
+                            <p>{step.title}</p>
+                          </div>
+                            <div
+                              className={`${index % 2 === 0 ? "col-start-2" : "col-start-1"}`}
+                            ></div>
                           </div>
                         </div>
-
-                        {/* Content positioning based on even/odd */}
-                        <div className={`contents`}>
-                          <motion.div
-                            whileHover={{ scale: 1.02 }}
-                            className={`${index % 2 === 0 ? "col-start-1 pr-12 text-right" : "col-start-2 pl-12"}`}
-                          >
-                            <Card
-                              className={`h-full shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer bg-[#EDC9AF]/10 hover:bg-[#EDC9AF]/20`}
-                              onClick={() => toggleExpand(step.id)}
-                            >
-                              <CardContent className="p-6">
-                                <div
-                                  className={`flex items-center mb-4 gap-3 ${index % 2 === 0 ? "justify-end" : "justify-start"}`}
-                                >
-                                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-[#EDC9AF] transition-all duration-300 hover:bg-[#C19A6B] transform hover:rotate-6">
-                                    <step.icon className="h-8 w-8 text-[#F5A623]" />
-                                  </div>
-                                  <div className="flex items-center">
-                                    <span className="text-[#0B1C3F] font-bold text-xl">
-                                      {step.title}
-                                    </span>
-                                    <div
-                                      className={`text-xs px-2 py-1 rounded-full inline-block ml-2 ${getStatusClass(step.status)}`}
-                                    >
-                                      {step.status.charAt(0).toUpperCase() +
-                                        step.status.slice(1)}
-                                    </div>
-                                  </div>
-                                </div>
-                                <p className="text-[#546E7A]">
-                                  {step.description}
-                                </p>
-
-                                <AnimatePresence>
-                                  {expandedStep === step.id && (
-                                    <motion.div
-                                      initial={{ height: 0, opacity: 0 }}
-                                      animate={{ height: "auto", opacity: 1 }}
-                                      exit={{ height: 0, opacity: 0 }}
-                                      transition={{ duration: 0.3 }}
-                                      className="overflow-hidden"
-                                    >
-                                      <div className="mt-4 pt-4 border-t border-gray-100">
-                                        {step.requiredActions &&
-                                          step.requiredActions.length > 0 && (
-                                            <div className="mt-3">
-                                              <h4 className="text-sm font-semibold mb-2">
-                                                Required Actions:
-                                              </h4>
-                                              <ul
-                                                className={`list-disc ${index % 2 === 0 ? "pr-5 text-right" : "pl-5"} text-sm text-[#546E7A]`}
-                                              >
-                                                {step.requiredActions.map(
-                                                  (action, idx) => (
-                                                    <li
-                                                      key={idx}
-                                                      className={`${index % 2 === 0 ? "list-inside flex justify-end items-center" : "flex items-center justify-between"}`}
-                                                    >
-                                                      {index % 2 === 0 && (
-                                                        <Button
-                                                          size="sm"
-                                                          variant="ghost"
-                                                          className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 h-auto mr-2"
-                                                          onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleCompleteAction(
-                                                              step.id,
-                                                              idx,
-                                                            );
-                                                          }}
-                                                        >
-                                                          <CheckCircle className="h-4 w-4" />
-                                                        </Button>
-                                                      )}
-                                                      <span>{action}</span>
-                                                      {index % 2 !== 0 && (
-                                                        <Button
-                                                          size="sm"
-                                                          variant="ghost"
-                                                          className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 h-auto"
-                                                          onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleCompleteAction(
-                                                              step.id,
-                                                              idx,
-                                                            );
-                                                          }}
-                                                        >
-                                                          <CheckCircle className="h-4 w-4" />
-                                                        </Button>
-                                                      )}
-                                                    </li>
-                                                  ),
-                                                )}
-                                              </ul>
-                                            </div>
-                                          )}
-
-                                        {step.delayReason && (
-                                          <div className="mt-3 p-2 bg-red-50 rounded-md">
-                                            <h4 className="text-sm font-semibold text-red-700 flex items-center">
-                                              <AlertCircle className="h-4 w-4 mr-1" />{" "}
-                                              Delay Information:
-                                            </h4>
-                                            <p className="text-sm text-red-600">
-                                              {step.delayReason}
-                                            </p>
-                                          </div>
-                                        )}
-
-                                        {step.estimatedCompletion && (
-                                          <div className="mt-3 text-sm text-[#546E7A]">
-                                            <span className="font-semibold">
-                                              Estimated completion:
-                                            </span>{" "}
-                                            {new Date(
-                                              step.estimatedCompletion,
-                                            ).toLocaleDateString()}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
-                              </CardContent>
-                            </Card>
-                          </motion.div>
-                          {/* Empty div for layout in alternating pattern */}
-                          <div
-                            className={`${index % 2 === 0 ? "col-start-2" : "col-start-1"}`}
-                          ></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
+                  {filteredSteps.length === 0 && showSpecificProcess && !isLoading && !loadStepsError && (
+                    <div className="text-center py-10 col-span-2"> {/* Ensure it spans both columns if timeline is not drawn */}
+                      <Package className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-700">No Trading Steps Found</h3>
+                      <p className="text-gray-500">No trading steps have been recorded for this shipment yet.</p>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -1306,3 +963,4 @@ const TradingProcess = () => {
 };
 
 export default TradingProcess;
+// The file has no content beyond this line.

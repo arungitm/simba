@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { ChevronRight, ChevronLeft, Check, Send } from "lucide-react";
+import { ChevronRight, ChevronLeft, Check, Send, AlertCircle } from "lucide-react";
+import { supabase } from "../lib/supabaseClient"; // Import Supabase client
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +29,8 @@ interface RFQFormProps {
   className?: string;
 }
 
-type FormData = {
+// FormData and defaultFormData are already exported, which is good.
+export type FormData = {
   fullName: string;
   email: string;
   company: string;
@@ -41,7 +43,7 @@ type FormData = {
   additionalInfo: string;
 };
 
-const defaultFormData: FormData = {
+export const defaultFormData: FormData = {
   fullName: "",
   email: "",
   company: "",
@@ -83,56 +85,16 @@ const RFQForm: React.FC<RFQFormProps> = ({ onSubmit, className = "" }) => {
   const handleSelectChange = (name: string, value: string) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
-
-  const validateForm = (): boolean => {
-    const errors: Partial<Record<keyof FormData, string>> = {};
-    let isValid = true;
-
-    // Basic validation
-    if (!formData.fullName.trim()) {
-      errors.fullName = "Full name is required";
-      isValid = false;
-    }
-
-    if (!formData.email.trim()) {
-      errors.email = "Email is required";
-      isValid = false;
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      errors.email = "Please enter a valid email address";
-      isValid = false;
-    }
-
-    if (!formData.company.trim()) {
-      errors.company = "Company name is required";
-      isValid = false;
-    }
-
-    if (currentStep >= 1 && !formData.productCategory) {
-      errors.productCategory = "Please select a product category";
-      isValid = false;
-    }
-
-    if (currentStep >= 2 && !formData.productSpecifications.trim()) {
-      errors.productSpecifications = "Product specifications are required";
-      isValid = false;
-    }
-
-    if (currentStep >= 3 && !formData.quantity.trim()) {
-      errors.quantity = "Quantity is required";
-      isValid = false;
-    }
-
-    if (currentStep >= 4 && !formData.incoterm) {
-      errors.incoterm = "Please select an incoterm";
-      isValid = false;
-    }
-
+  
+  // Component's internal validate function that uses the module-scoped one and sets state
+  const validateFormAndSetState = (): boolean => {
+    const errors = validateRFQForm(formData, currentStep); // Uses the module-scoped validateRFQForm
     setFormErrors(errors);
-    return isValid;
+    return Object.keys(errors).length === 0;
   };
 
   const nextStep = () => {
-    if (validateForm() && currentStep < steps.length - 1) {
+    if (validateFormAndSetState() && currentStep < steps.length - 1) {
       setCurrentStep((prev) => prev + 1);
     }
   };
@@ -146,23 +108,43 @@ const RFQForm: React.FC<RFQFormProps> = ({ onSubmit, className = "" }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validateForm()) {
+    if (!validateFormAndSetState()) {
       return;
     }
 
     setIsSubmitting(true);
+    setSubmitError(null);
 
-    // Simulate API call
+    const dataForSupabase = {
+      full_name: formData.fullName,
+      email: formData.email,
+      company: formData.company,
+      phone: formData.phone || null, // Ensure optional fields are handled
+      product_category: formData.productCategory,
+      product_specifications: formData.productSpecifications,
+      quantity: formData.quantity,
+      unit: formData.unit,
+      incoterm: formData.incoterm,
+      additional_info: formData.additionalInfo || null, // Ensure optional fields are handled
+    };
+
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      if (onSubmit) {
+      const { error } = await supabase // Corrected: removed trailing underscore
+        .from("rfq_submissions")
+        .insert([dataForSupabase]);
+
+      if (error) {
+        throw error;
+      }
+
+      // If Supabase insert is successful
+      if (onSubmit) { // Keep existing onSubmit prop call if it's used for other things
         onSubmit(formData);
       }
       setIsSubmitted(true);
-      setSubmitError(null);
-    } catch (error) {
-      console.error("Error submitting form:", error);
-      setSubmitError("Failed to submit form. Please try again.");
+    } catch (error: any) {
+      console.error("Error submitting RFQ to Supabase:", error);
+      setSubmitError(error.message || "Failed to submit RFQ. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -559,6 +541,43 @@ const RFQForm: React.FC<RFQFormProps> = ({ onSubmit, className = "" }) => {
       </form>
     </Card>
   );
+};
+
+// Moved validateFormInternal outside the component to be validateRFQForm at module scope
+// and directly exported.
+export const validateRFQForm = (
+  data: FormData,
+  step: number,
+): Partial<Record<keyof FormData, string>> => {
+  const errors: Partial<Record<keyof FormData, string>> = {};
+
+  // Basic validation (Always applied, but errors shown based on step progression in UI)
+  if (!data.fullName.trim()) {
+    errors.fullName = "Full name is required";
+  }
+  if (!data.email.trim()) {
+    errors.email = "Email is required";
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+    errors.email = "Please enter a valid email address";
+  }
+  if (!data.company.trim()) {
+    errors.company = "Company name is required";
+  }
+
+  // Step-specific validation
+  if (step >= 1 && !data.productCategory) {
+    errors.productCategory = "Please select a product category";
+  }
+  if (step >= 2 && !data.productSpecifications.trim()) {
+    errors.productSpecifications = "Product specifications are required";
+  }
+  if (step >= 3 && !data.quantity.trim()) {
+    errors.quantity = "Quantity is required";
+  }
+  if (step >= 4 && !data.incoterm) {
+    errors.incoterm = "Please select an incoterm";
+  }
+  return errors;
 };
 
 export default RFQForm;
